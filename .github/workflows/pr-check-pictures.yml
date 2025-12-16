@@ -1,0 +1,148 @@
+name: "Check new board assets exist (images + vendor logos)"
+
+on:
+  pull_request:
+    paths:
+      - "config/boards/**"
+  workflow_dispatch:
+
+env:
+  BUILD_REPO: "igorpecovnik/build"
+  WEBSITE_REPO: "armbian/armbian.github.io"
+  WEBSITE_REF: "main"
+
+  BOARDS_PATH: "config/boards"
+  BOARD_IMAGES_DIR: "board-images"
+  VENDOR_LOGOS_DIR: "board-vendor-logos"
+
+jobs:
+  Check:
+    name: "Verify assets for newly added boards"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: "Checkout build repo"
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.BUILD_REPO }}
+          ref: main
+          fetch-depth: 0
+
+      - name: "Checkout armbian.github.io (images repo)"
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.WEBSITE_REPO }}
+          ref: ${{ env.WEBSITE_REF }}
+          path: website
+          fetch-depth: 1
+
+      - name: "Find newly added board configs in PR"
+        id: added
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # For PRs, compare the PR HEAD against the PR base
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+          git diff --name-status "${BASE_SHA}" "${HEAD_SHA}" -- "${BOARDS_PATH}" \
+            | awk '$1=="A"{print $2}' \
+            | grep -E '\.(conf|csc|wip|tvb)$' \
+            > added-files.txt || true
+
+          echo "New board config files:"
+          cat added-files.txt || true
+
+          if [[ ! -s added-files.txt ]]; then
+            echo "No new board configs detected."
+            echo "none=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "none=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: "Validate board image + vendor logo exist on website repo"
+        if: ${{ steps.added.outputs.none != 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing_any=0
+
+          echo "## New boards: required assets check" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "This PR adds new board config(s). Required assets must already exist in \`${WEBSITE_REPO}\`:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`${BOARD_IMAGES_DIR}/<board>.png\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`${VENDOR_LOGOS_DIR}/<vendor>-logo.(png|jpg|jpeg|svg)\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          while IFS= read -r cfg; do
+            [[ -z "${cfg}" ]] && continue
+
+            file="$(basename "$cfg")"
+            board="${file%.*}"
+
+            vendor="$(
+              grep -E '^[[:space:]]*(export[[:space:]]+)?BOARD_VENDOR[[:space:]]*=' -m1 -- "$cfg" 2>/dev/null \
+              | sed -E 's/^[[:space:]]*(export[[:space:]]+)?BOARD_VENDOR[[:space:]]*=[[:space:]]*//; s/^"//; s/"$//' \
+              | tr '[:upper:]' '[:lower:]' \
+              | tr '_' '-' \
+              | awk 'NF{print; exit}' \
+              || true
+            )"
+
+            board_img="website/${BOARD_IMAGES_DIR}/${board}.png"
+
+            vendor_logo_candidates=(
+              "website/${VENDOR_LOGOS_DIR}/${vendor}-logo.png"
+              "website/${VENDOR_LOGOS_DIR}/${vendor}-logo.jpg"
+              "website/${VENDOR_LOGOS_DIR}/${vendor}-logo.jpeg"
+              "website/${VENDOR_LOGOS_DIR}/${vendor}-logo.svg"
+            )
+
+            echo "### \`${board}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Config: \`${cfg}\`" >> "$GITHUB_STEP_SUMMARY"
+
+            if [[ -f "${board_img}" ]]; then
+              echo "- Board image: ✅ \`${BOARD_IMAGES_DIR}/${board}.png\`" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- Board image: ❌ missing \`${BOARD_IMAGES_DIR}/${board}.png\`" >> "$GITHUB_STEP_SUMMARY"
+              missing_any=1
+            fi
+
+            if [[ -z "${vendor}" ]]; then
+              echo "- Vendor: ❌ could not extract \`BOARD_VENDOR\` from config" >> "$GITHUB_STEP_SUMMARY"
+              missing_any=1
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            else
+              echo "- Vendor: \`${vendor}\`" >> "$GITHUB_STEP_SUMMARY"
+            fi
+
+            found_logo=""
+            for cand in "${vendor_logo_candidates[@]}"; do
+              if [[ -f "${cand}" ]]; then
+                found_logo="${cand}"
+                break
+              fi
+            done
+
+            if [[ -n "${found_logo}" ]]; then
+              rel="${found_logo#website/}"
+              echo "- Vendor logo: ✅ \`${rel}\`" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- Vendor logo: ❌ missing \`${VENDOR_LOGOS_DIR}/${vendor}-logo.(png|jpg|jpeg|svg)\`" >> "$GITHUB_STEP_SUMMARY"
+              missing_any=1
+            fi
+
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          done < added-files.txt
+
+          if [[ "${missing_any}" -ne 0 ]]; then
+            echo "::error ::Missing required assets in armbian/armbian.github.io (board image and/or vendor logo)."
+            exit 1
+          fi
