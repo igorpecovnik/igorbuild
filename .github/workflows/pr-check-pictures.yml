@@ -74,6 +74,7 @@ jobs:
           comment_file="$(mktemp)"
 
           {
+            echo ""  
             echo "This PR adds new board configuration(s). Required assets must already exist in **${WEBSITE_REPO}**:"
             echo ""
             echo "- Board images: \`${BOARD_IMAGES_DIR}/<board>.png\`"
@@ -162,7 +163,7 @@ jobs:
 
                     Once the missing files are added (or a PR is opened in **${process.env.WEBSITE_REPO}**), re-run this check.
                     `;
-
+                    
                     await github.rest.issues.createComment({
                         owner: context.repo.owner,
                         repo: context.repo.repo,
