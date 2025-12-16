@@ -72,8 +72,9 @@ jobs:
           comment_file="$(mktemp)"
 
           {
-            echo ""  
-            echo "This PR adds new board configuration(s). Required assets must already exist in [github/${WEBSITE_REPO}](https://github.com/${WEBSITE_REPO}):"
+            echo ""
+            echo "This PR adds new board configuration(s). Required assets must already exist in [github/${WEBSITE_REPO}](https://github.com/${WEBSITE_REPO})."
+            echo "They are required by [Armbian Imager](https://github.com/armbian/imager) to ensure all boards are displayed with proper images."
             echo ""
             echo "- Board images: \`${BOARD_IMAGES_DIR}/<board>.png\`"
             echo "- Vendor logos: \`${VENDOR_LOGOS_DIR}/<vendor>-logo.png\`"
