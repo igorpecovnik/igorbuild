@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  BUILD_REPO: "armbian/build"
+  BUILD_REPO: "igorpecovnik/build"
   WEBSITE_REPO: "armbian/armbian.github.io"
   WEBSITE_REF: "main"
 
