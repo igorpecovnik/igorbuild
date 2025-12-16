@@ -75,8 +75,8 @@ jobs:
             echo "This PR adds new board configuration(s). Required assets must already exist in [github/${WEBSITE_REPO}](https://github.com/${WEBSITE_REPO})."
             echo "They are required by [Armbian Imager](https://github.com/armbian/imager) to ensure all boards are displayed with proper images."
             echo ""
-            echo "- Board images: \`${BOARD_IMAGES_DIR}/<board>.png\`"
-            echo "- Vendor logos: \`${VENDOR_LOGOS_DIR}/<vendor>-logo.png\`"
+            echo "- Board images: \`${BOARD_IMAGES_DIR}/<board>.png\` _(1920x1080 px transparent)_"
+            echo "- Vendor logos: \`${VENDOR_LOGOS_DIR}/<vendor>-logo.png\` _(512x512 px transparent)_"
             echo ""
             echo "### Missing items"
             echo ""
@@ -102,7 +102,7 @@ jobs:
             if [[ -z "${board_img_match}" ]]; then
               {
                 echo "- ❌ **Board image missing** for \`${board}\`"
-                echo "  - Expected: \`${BOARD_IMAGES_DIR}/${board}.png\` (1920 x 1080px transparent)"
+                echo "  - Expected: \`${BOARD_IMAGES_DIR}/${board}.png\`"
                 echo "  - Fix: add the file to **${WEBSITE_REPO}** (folder \`${BOARD_IMAGES_DIR}/\`)"
                 echo ""
               } >> "$comment_file"
@@ -126,7 +126,7 @@ jobs:
             if [[ -z "${found_logo}" ]]; then
               {
                 echo "- ❌ **Vendor logo missing** for vendor \`${vendor}\` (used by board \`${board}\`)"
-                echo "  - Expected: \`${VENDOR_LOGOS_DIR}/${vendor}-logo.png\` (512 x 512px transparent)"
+                echo "  - Expected: \`${VENDOR_LOGOS_DIR}/${vendor}-logo.png\`"
                 echo "  - Fix: add the file to **${WEBSITE_REPO}** (folder \`${VENDOR_LOGOS_DIR}/\`)"
                 echo "  - Naming rules: lowercase, dashes (e.g. \`kobol-logo.png\`, not \`Kobol_logo.png\`)"
                 echo ""
