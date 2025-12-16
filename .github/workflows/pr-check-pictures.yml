@@ -62,7 +62,7 @@ jobs:
           fi
 
       - name: "Validate board image + vendor logo exist on website repo"
-        id: validate
+        id: validate_(512x512 px transparent)_
         if: ${{ steps.added.outputs.none != 'true' }}
         shell: bash
         run: |
