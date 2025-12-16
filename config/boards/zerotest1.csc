@@ -1,6 +1,6 @@
 # Allwinner H3 quad core 512MB RAM GBE SoC headless
 BOARD_NAME="ZeroPi"
-BOARD_VENDOR="friendlyelec"
+BOARD_VENDOR="friendlyelecx"
 BOARDFAMILY="sun8i"
 BOARD_MAINTAINER="igorpecovnik"
 BOOTCONFIG="zeropi_defconfig"
