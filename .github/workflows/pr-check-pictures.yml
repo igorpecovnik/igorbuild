@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ env.BUILD_REPO }}
-          ref: main
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       - name: "Checkout armbian.github.io (images repo)"
