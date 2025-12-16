@@ -75,7 +75,7 @@ jobs:
 
           {
             echo ""  
-            echo "This PR adds new board configuration(s). Required assets must already exist in [https://${WEBSITE_REPO}](${WEBSITE_REPO}):"
+            echo "This PR adds new board configuration(s). Required assets must already exist in [github/${WEBSITE_REPO}](github.com/${WEBSITE_REPO}):"
             echo ""
             echo "- Board images: \`${BOARD_IMAGES_DIR}/<board>.png\`"
             echo "- Vendor logos: \`${VENDOR_LOGOS_DIR}/<vendor>-logo.(png|jpg|jpeg|svg)\`"
