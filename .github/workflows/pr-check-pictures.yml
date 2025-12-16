@@ -7,7 +7,6 @@ on:
   workflow_dispatch:
 
 env:
-  BUILD_REPO: "igorpecovnik/igorbuild"
   WEBSITE_REPO: "armbian/armbian.github.io"
   WEBSITE_REF: "main"
 
@@ -27,7 +26,6 @@ jobs:
       - name: "Checkout build repo (PR head)"
         uses: actions/checkout@v4
         with:
-          repository: ${{ env.BUILD_REPO }}
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
