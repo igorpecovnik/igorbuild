@@ -8,6 +8,8 @@ on:
 
 env:
   BUILD_REPO: "igorpecovnik/igorbuild"
+  BUILD_REF: "main"
+
   WEBSITE_REPO: "armbian/armbian.github.io"
   WEBSITE_REF: "main"
 
@@ -21,10 +23,10 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
 
     steps:
-      - name: "Checkout build repo"
+      - name: "Checkout build repo (PR head)"
         uses: actions/checkout@v4
         with:
           repository: ${{ env.BUILD_REPO }}
@@ -45,7 +47,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # For PRs, compare the PR HEAD against the PR base
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
@@ -65,19 +66,24 @@ jobs:
           fi
 
       - name: "Validate board image + vendor logo exist on website repo"
+        id: validate
         if: ${{ steps.added.outputs.none != 'true' }}
         shell: bash
         run: |
           set -euo pipefail
 
           missing_any=0
+          comment_file="$(mktemp)"
 
-          echo "## New boards: required assets check" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "This PR adds new board config(s). Required assets must already exist in \`${WEBSITE_REPO}\`:" >> "$GITHUB_STEP_SUMMARY"
-          echo "- \`${BOARD_IMAGES_DIR}/<board>.png\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- \`${VENDOR_LOGOS_DIR}/<vendor>-logo.(png|jpg|jpeg|svg)\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "This PR adds new board configuration(s). Required assets must already exist in **${WEBSITE_REPO}**:"
+            echo ""
+            echo "- Board images: \`${BOARD_IMAGES_DIR}/<board>.png\`"
+            echo "- Vendor logos: \`${VENDOR_LOGOS_DIR}/<vendor>-logo.(png|jpg|jpeg|svg)\`"
+            echo ""
+            echo "### Missing items"
+            echo ""
+          } > "$comment_file"
 
           while IFS= read -r cfg; do
             [[ -z "${cfg}" ]] && continue
@@ -85,6 +91,7 @@ jobs:
             file="$(basename "$cfg")"
             board="${file%.*}"
 
+            # Extract vendor from config (tolerant: optional export, spaces around '=', optional quotes)
             vendor="$(
               grep -E '^[[:space:]]*(export[[:space:]]+)?BOARD_VENDOR[[:space:]]*=' -m1 -- "$cfg" 2>/dev/null \
               | sed -E 's/^[[:space:]]*(export[[:space:]]+)?BOARD_VENDOR[[:space:]]*=[[:space:]]*//; s/^"//; s/"$//' \
@@ -94,55 +101,72 @@ jobs:
               || true
             )"
 
-            board_img="website/${BOARD_IMAGES_DIR}/${board}.png"
+            # Board image must be exactly <board>.png (case-insensitive to avoid surprises)
+            board_img_match="$(find "website/${BOARD_IMAGES_DIR}" -maxdepth 1 -type f -iname "${board}.png" | head -n1 || true)"
 
-            vendor_logo_candidates=(
-              "website/${VENDOR_LOGOS_DIR}/${vendor}-logo.png"
-              "website/${VENDOR_LOGOS_DIR}/${vendor}-logo.jpg"
-              "website/${VENDOR_LOGOS_DIR}/${vendor}-logo.jpeg"
-              "website/${VENDOR_LOGOS_DIR}/${vendor}-logo.svg"
-            )
-
-            echo "### \`${board}\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Config: \`${cfg}\`" >> "$GITHUB_STEP_SUMMARY"
-
-            if [[ -f "${board_img}" ]]; then
-              echo "- Board image: ✅ \`${BOARD_IMAGES_DIR}/${board}.png\`" >> "$GITHUB_STEP_SUMMARY"
-            else
-              echo "- Board image: ❌ missing \`${BOARD_IMAGES_DIR}/${board}.png\`" >> "$GITHUB_STEP_SUMMARY"
+            if [[ -z "${board_img_match}" ]]; then
+              {
+                echo "- ❌ **Board image missing** for \`${board}\`"
+                echo "  - Expected: \`${BOARD_IMAGES_DIR}/${board}.png\`"
+                echo "  - Fix: add the file to **${WEBSITE_REPO}** (folder \`${BOARD_IMAGES_DIR}/\`)"
+                echo ""
+              } >> "$comment_file"
               missing_any=1
             fi
 
             if [[ -z "${vendor}" ]]; then
-              echo "- Vendor: ❌ could not extract \`BOARD_VENDOR\` from config" >> "$GITHUB_STEP_SUMMARY"
+              {
+                echo "- ❌ **BOARD_VENDOR not found** in \`${cfg}\`"
+                echo "  - Fix: add e.g. \`BOARD_VENDOR=\"radxa\"\` (lowercase recommended)"
+                echo ""
+              } >> "$comment_file"
               missing_any=1
-              echo "" >> "$GITHUB_STEP_SUMMARY"
               continue
-            else
-              echo "- Vendor: \`${vendor}\`" >> "$GITHUB_STEP_SUMMARY"
             fi
 
-            found_logo=""
-            for cand in "${vendor_logo_candidates[@]}"; do
-              if [[ -f "${cand}" ]]; then
-                found_logo="${cand}"
-                break
-              fi
-            done
+            # Vendor logo expected: <vendor>-logo.(png|jpg|jpeg|svg) (case-insensitive)
+            found_logo="$(find "website/${VENDOR_LOGOS_DIR}" -maxdepth 1 -type f \
+              \( -iname "${vendor}-logo.png" -o -iname "${vendor}-logo.jpg" -o -iname "${vendor}-logo.jpeg" -o -iname "${vendor}-logo.svg" \) \
+              | head -n1 || true)"
 
-            if [[ -n "${found_logo}" ]]; then
-              rel="${found_logo#website/}"
-              echo "- Vendor logo: ✅ \`${rel}\`" >> "$GITHUB_STEP_SUMMARY"
-            else
-              echo "- Vendor logo: ❌ missing \`${VENDOR_LOGOS_DIR}/${vendor}-logo.(png|jpg|jpeg|svg)\`" >> "$GITHUB_STEP_SUMMARY"
+            if [[ -z "${found_logo}" ]]; then
+              {
+                echo "- ❌ **Vendor logo missing** for vendor \`${vendor}\` (used by board \`${board}\`)"
+                echo "  - Expected: \`${VENDOR_LOGOS_DIR}/${vendor}-logo.(png|jpg|jpeg|svg)\`"
+                echo "  - Fix: add the file to **${WEBSITE_REPO}** (folder \`${VENDOR_LOGOS_DIR}/\`)"
+                echo "  - Naming rules: lowercase, dashes (e.g. \`kobol-logo.png\`, not \`Kobol_logo.png\`)"
+                echo ""
+              } >> "$comment_file"
               missing_any=1
             fi
-
-            echo "" >> "$GITHUB_STEP_SUMMARY"
           done < added-files.txt
 
           if [[ "${missing_any}" -ne 0 ]]; then
-            echo "::error ::Missing required assets in armbian/armbian.github.io (board image and/or vendor logo)."
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+            echo 'comment<<EOF' >> "$GITHUB_OUTPUT"
+            cat "$comment_file" >> "$GITHUB_OUTPUT"
+            echo 'EOF' >> "$GITHUB_OUTPUT"
             exit 1
+          else
+            echo "missing=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: "Comment on PR with missing asset instructions"
+        if: failure() && github.event_name == 'pull_request' && steps.validate.outputs.missing == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const body = `### 🚫 Missing required board assets
+
+            ${{ steps.validate.outputs.comment }}
+
+            Once the missing files are added (or a PR is opened in **${process.env.WEBSITE_REPO}**), re-run this check.
+            `;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
