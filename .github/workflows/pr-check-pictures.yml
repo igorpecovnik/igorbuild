@@ -147,25 +147,25 @@ jobs:
           fi
 
       - name: "Comment on PR with missing asset instructions"
-        if: failure() && github.event_name == 'pull_request' && steps.validate.outputs.missing == 'true'
+        if: always() && github.event_name == 'pull_request' && steps.validate.outputs.missing == 'true'
         uses: actions/github-script@v7
         env:
-          COMMENT_BODY: ${{ steps.validate.outputs.comment }}
-          WEBSITE_REPO: ${{ env.WEBSITE_REPO }}
+            COMMENT_BODY: ${{ steps.validate.outputs.comment }}
+            WEBSITE_REPO: ${{ env.WEBSITE_REPO }}
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const body =
-            `### 🚫 Missing required board assets
-            
-            ${process.env.COMMENT_BODY}
-            
-            Once the missing files are added (or a PR is opened in **${process.env.WEBSITE_REPO}**), re-run this check.
-            `;
+            github-token: ${{ secrets.GITHUB_TOKEN }}
+            script: |
+                const body =
+                    `### 🚫 Missing required board assets
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body
-            });
+                    ${process.env.COMMENT_BODY}
+
+                    Once the missing files are added (or a PR is opened in **${process.env.WEBSITE_REPO}**), re-run this check.
+                    `;
+
+                    await github.rest.issues.createComment({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: context.issue.number,
+                        body
+                    });
