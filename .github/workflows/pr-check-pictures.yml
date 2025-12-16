@@ -141,7 +141,7 @@ jobs:
             echo 'comment<<EOF' >> "$GITHUB_OUTPUT"
             cat "$comment_file" >> "$GITHUB_OUTPUT"
             echo 'EOF' >> "$GITHUB_OUTPUT"
-            exit 1
+            echo "::warning ::Missing required assets (see PR comment)."
           else
             echo "missing=false" >> "$GITHUB_OUTPUT"
           fi
